@@ -1,2 +1,1 @@
-# FireSpreading_Simulation
-A fire spreading simulation in Unreal Engine, demonstrating systems programming, component-based design, and UI integration.
+Fire Spreading Simulation is a system designed to visualize how fire propagates across a terrain under the influence of wind and chance-based spread logic. The project demonstrates dynamic fire growth, and real-time wind visualization. The user can interact with the simulation through a UI that controls parameters such as wind speed, wind direction, and fire spread chance.
