@@ -20,6 +20,44 @@ AFireManager::AFireManager()
 	WindDecalComponent->DecalSize = FVector(20.0f, 20.0f, 20.0f); // Adjust size as needed
 }
 
+int64 AFireManager::ComputeCellKey(int32 CellX, int32 CellY) const
+{
+	// pack two signed 32-bit ints into one 64-bit key
+	return (static_cast<int64>(CellX) << 32) | static_cast<uint32>(CellY);
+}
+
+void AFireManager::GetCellCoords(const FVector& Pos, int32& OutX, int32& OutY) const
+{
+	const float CellSize = SpatialCellSize > 0.f ? SpatialCellSize : FMath::Max(spreadRadius, 1.f);
+	OutX = FMath::FloorToInt(Pos.X / CellSize);
+	OutY = FMath::FloorToInt(Pos.Y / CellSize);
+}
+
+void AFireManager::InsertInstanceIntoGrid(int32 FireArrayIndex)
+{
+	if (!fireInstances.IsValidIndex(FireArrayIndex)) return;
+
+	const FVector& Pos = fireInstances[FireArrayIndex].CachedLocation;
+	int32 CX = 0, CY = 0;
+	GetCellCoords(Pos, CX, CY);
+	int64 Key = ComputeCellKey(CX, CY);
+
+	TArray<int32>& Bucket = SpatialHashGrid.FindOrAdd(Key);
+	Bucket.AddUnique(FireArrayIndex);
+}
+
+void AFireManager::RebuildSpatialIndex()
+{
+	SpatialHashGrid.Empty();
+	// set cell size from spreadRadius to avoid tiny/zero cells
+	SpatialCellSize = FMath::Max(spreadRadius, 1.f);
+
+	for (int32 i = 0; i < fireInstances.Num(); ++i)
+	{
+		InsertInstanceIntoGrid(i);
+	}
+}
+
 void AFireManager::BeginPlay()
 {
 	Super::BeginPlay();
@@ -28,6 +66,10 @@ void AFireManager::BeginPlay()
 	WindXY.Z = 0.f;
 
 	UpdateWindDecalFX(WindXY, windSpeed);
+
+	// Initialize spatial index cell size and index for already-registered instances (if any)
+	SpatialCellSize = FMath::Max(spreadRadius, 1.f);
+	RebuildSpatialIndex();
 }
 
 void AFireManager::SetSimulationRunning(bool bRun)
@@ -62,58 +104,100 @@ void AFireManager::RegisterFireComponent(int32 InstanceIndex, AActorSpawner* Spa
 	NewInstance.InstanceIndex = InstanceIndex;
 
 	// Initialize fire state + burn progress in HISM custom data
-	Spawner->HISM->SetCustomDataValue(InstanceIndex, 0, 0.f, false); // Fire State (0 = Fresh)
-	Spawner->HISM->SetCustomDataValue(InstanceIndex, 1, 0.f, true); // Burn Progress (0%)
+	if (Spawner && Spawner->HISM)
+	{
+		Spawner->HISM->SetCustomDataValue(InstanceIndex, 0, 0.f, false); // Fire State (0 = Fresh)
+		Spawner->HISM->SetCustomDataValue(InstanceIndex, 1, 0.f, true);  // Burn Progress (0%)
+	}
 
-	fireInstances.Add(NewInstance);
+	// Try to cache the instance world location now to avoid querying transform every spread tick
+	if (Spawner && Spawner->HISM)
+	{
+		FTransform InstanceTransform;
+		if (Spawner->HISM->GetInstanceTransform(InstanceIndex, InstanceTransform, true))
+		{
+			NewInstance.CachedLocation = InstanceTransform.GetLocation();
+		}
+	}
+
+	// Add instance and insert to spatial grid
+	int32 NewArrayIndex = fireInstances.Add(NewInstance);
+	InsertInstanceIntoGrid(NewArrayIndex);
 }
 
 void AFireManager::TrySpread()
 {
 	if (!bIsSimulationRunning) return;
 
-	for (FFireInstanceData& FireSource : fireInstances)
+	if (fireInstances.Num() == 0) return;
+
+	// Precompute some values outside inner loops
+	const float CellSize = SpatialCellSize > 0.f ? SpatialCellSize : FMath::Max(spreadRadius, 1.f);
+	const int32 RadiusInCells = FMath::CeilToInt(spreadRadius / CellSize);
+	const FVector WindNorm = windDirection.GetSafeNormal();
+
+	// Iterate only burning instances and query nearby buckets
+	for (int32 SourceIdx = 0; SourceIdx < fireInstances.Num(); ++SourceIdx)
 	{
+		FFireInstanceData& FireSource = fireInstances[SourceIdx];
 		if (FireSource.FireState != EFireState::Burning) continue;
 
-		FTransform SourceInstanceTransform;
-		FVector SourceLoc;
-		if (FireSource.Spawner->HISM->GetInstanceTransform(FireSource.InstanceIndex, SourceInstanceTransform, true))
-			SourceLoc = SourceInstanceTransform.GetLocation();
+		const FVector SourceLoc = FireSource.CachedLocation;
 
-		for (FFireInstanceData& Target : fireInstances)
+		int32 SourceCellX = 0, SourceCellY = 0;
+		GetCellCoords(SourceLoc, SourceCellX, SourceCellY);
+
+		for (int32 dx = -RadiusInCells; dx <= RadiusInCells; ++dx)
 		{
-			if (Target.FireState != EFireState::Fresh) continue;
+			for (int32 dy = -RadiusInCells; dy <= RadiusInCells; ++dy)
+			{
+				int64 Key = ComputeCellKey(SourceCellX + dx, SourceCellY + dy);
+				if (TArray<int32>* Bucket = SpatialHashGrid.Find(Key))
+				{
+					for (int32 TargetArrayIdx : *Bucket)
+					{
+						// Skip self
+						if (TargetArrayIdx == SourceIdx) continue;
 
-			FTransform TargetInstanceTransform;
-			FVector TargetLoc;
-			if (FireSource.Spawner->HISM->GetInstanceTransform(Target.InstanceIndex, TargetInstanceTransform, true))
-				TargetLoc = TargetInstanceTransform.GetLocation();
+						// bounds check (shouldn't be necessary)
+						if (!fireInstances.IsValidIndex(TargetArrayIdx)) continue;
 
-			float Dist = FVector::Dist(SourceLoc, TargetLoc);
-			if (Dist > spreadRadius) continue;
+						FFireInstanceData& Target = fireInstances[TargetArrayIdx];
 
-			// Direction from source to target
-			FVector ToTarget = (TargetLoc - SourceLoc).GetSafeNormal();
+						// Only attempt ignition on fresh instances
+						if (Target.FireState != EFireState::Fresh) continue;
 
-			// Wind influence (dot product)
-			float WindDot = FVector::DotProduct(ToTarget, windDirection.GetSafeNormal());
+						// Quick AABB/cell-based distance reject could be done earlier; here precise distance
+						const FVector TargetLoc = Target.CachedLocation;
+						const float Dist = FVector::Dist(SourceLoc, TargetLoc);
+						if (Dist > spreadRadius) continue;
 
-			// Minimum spread factor ensures fire can always spread a bit (e.g., 10%)
-			const float MinFactor = 0.1f;
+						// Direction from source to target
+						const FVector ToTarget = (TargetLoc - SourceLoc).GetSafeNormal();
 
-			// Apply wind influence, scaled and clamped between MinFactor and 1 + windStrength
-			float WindFactor = FMath::Clamp(1.0f + WindDot * windSpeed, MinFactor, 1.0f + windSpeed);
+						// Wind influence (dot product)
+						const float WindDot = FVector::DotProduct(ToTarget, WindNorm);
 
-			// Final chance
-			float FinalChance = spreadChance * WindFactor;
+						// Minimum spread factor ensures fire can always spread a bit (e.g., 10%)
+						const float MinFactor = 0.1f;
 
-			// Ensure FinalChance does not exceed 1.0
-			FinalChance = FMath::Min(FinalChance, 1.0f);
+						// Apply wind influence, scaled and clamped between MinFactor and 1 + windStrength
+						const float WindFactor = FMath::Clamp(1.0f + WindDot * windSpeed, MinFactor, 1.0f + windSpeed);
 
-			// Attempt to ignite
-			if (FMath::FRand() < FinalChance)
-				IgniteInstance(Target);
+						// Final chance
+						float FinalChance = spreadChance * WindFactor;
+
+						// Ensure FinalChance does not exceed 1.0
+						FinalChance = FMath::Min(FinalChance, 1.0f);
+
+						// Attempt to ignite
+						if (FMath::FRand() < FinalChance)
+						{
+							IgniteInstance(Target);
+						}
+					}
+				}
+			}
 		}
 	}
 }

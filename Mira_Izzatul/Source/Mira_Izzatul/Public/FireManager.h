@@ -38,6 +38,10 @@ struct FFireInstanceData
 	UPROPERTY()
 	int32 InstanceIndex = -1;
 
+	// Cached world location (update if the instance moves)
+	UPROPERTY()
+	FVector CachedLocation = FVector::ZeroVector;
+
 	void StartBurn(float CurrentTime)
 	{
 		FireState = EFireState::Burning;
@@ -89,6 +93,19 @@ protected:
 private:
 	FTimerHandle spreadTimerHandle;
 	FTimerHandle burnUpdateTimerHandle;
+
+	// Spatial hash grid to accelerate spread queries.
+	// Key is packed (cellX, cellY) into int64; value is array of indices into fireInstances.
+	TMap<int64, TArray<int32>> SpatialHashGrid;
+
+	// Size of each grid cell. Set initially from spreadRadius; call RebuildSpatialIndex if spreadRadius changes.
+	float SpatialCellSize = 200.f;
+
+	// Helpers
+	int64 ComputeCellKey(int32 CellX, int32 CellY) const;
+	void GetCellCoords(const FVector& Pos, int32& OutX, int32& OutY) const;
+	void InsertInstanceIntoGrid(int32 FireArrayIndex);
+	void RebuildSpatialIndex();
 
 protected:
 	// Called when the game starts or when spawned

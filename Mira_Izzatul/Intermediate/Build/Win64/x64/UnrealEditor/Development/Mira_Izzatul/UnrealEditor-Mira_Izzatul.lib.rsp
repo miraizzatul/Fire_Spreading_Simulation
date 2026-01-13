@@ -1,0 +1,23 @@
+/NOLOGO
+/errorReport:prompt
+/MACHINE:x64
+/SUBSYSTEM:WINDOWS
+/DEF
+/NAME:"UnrealEditor-Mira_Izzatul.dll"
+/IGNORE:4221
+/NODEFAULTLIB
+"C:\Users\User\Documents\Unreal Projects\FireSpreading_Simulation\Mira_Izzatul\Intermediate\Build\Win64\x64\Mira_IzzatulEditor\Development\UnrealEd\SharedPCH.UnrealEd.Project.ValApi.Cpp20.h.obj"
+"C:\Users\User\Documents\Unreal Projects\FireSpreading_Simulation\Mira_Izzatul\Intermediate\Build\Win64\x64\UnrealEditor\Development\Mira_Izzatul\ActorSpawner.gen.cpp.obj"
+"C:\Users\User\Documents\Unreal Projects\FireSpreading_Simulation\Mira_Izzatul\Intermediate\Build\Win64\x64\UnrealEditor\Development\Mira_Izzatul\FireFreeFlyPawn.gen.cpp.obj"
+"C:\Users\User\Documents\Unreal Projects\FireSpreading_Simulation\Mira_Izzatul\Intermediate\Build\Win64\x64\UnrealEditor\Development\Mira_Izzatul\FireManager.gen.cpp.obj"
+"C:\Users\User\Documents\Unreal Projects\FireSpreading_Simulation\Mira_Izzatul\Intermediate\Build\Win64\x64\UnrealEditor\Development\Mira_Izzatul\FirePlayerController.gen.cpp.obj"
+"C:\Users\User\Documents\Unreal Projects\FireSpreading_Simulation\Mira_Izzatul\Intermediate\Build\Win64\x64\UnrealEditor\Development\Mira_Izzatul\FireSpreadSpecPawn.gen.cpp.obj"
+"C:\Users\User\Documents\Unreal Projects\FireSpreading_Simulation\Mira_Izzatul\Intermediate\Build\Win64\x64\UnrealEditor\Development\Mira_Izzatul\Mira_Izzatul.init.gen.cpp.obj"
+"C:\Users\User\Documents\Unreal Projects\FireSpreading_Simulation\Mira_Izzatul\Intermediate\Build\Win64\x64\UnrealEditor\Development\Mira_Izzatul\Mira_Izzatul.cpp.obj"
+"C:\Users\User\Documents\Unreal Projects\FireSpreading_Simulation\Mira_Izzatul\Intermediate\Build\Win64\x64\UnrealEditor\Development\Mira_Izzatul\FireFreeFlyPawn.cpp.obj"
+"C:\Users\User\Documents\Unreal Projects\FireSpreading_Simulation\Mira_Izzatul\Intermediate\Build\Win64\x64\UnrealEditor\Development\Mira_Izzatul\FirePlayerController.cpp.obj"
+"C:\Users\User\Documents\Unreal Projects\FireSpreading_Simulation\Mira_Izzatul\Intermediate\Build\Win64\x64\UnrealEditor\Development\Mira_Izzatul\FireSpreadSpecPawn.cpp.obj"
+"C:\Users\User\Documents\Unreal Projects\FireSpreading_Simulation\Mira_Izzatul\Intermediate\Build\Win64\x64\UnrealEditor\Development\Mira_Izzatul\ActorSpawner.cpp.obj"
+"C:\Users\User\Documents\Unreal Projects\FireSpreading_Simulation\Mira_Izzatul\Intermediate\Build\Win64\x64\UnrealEditor\Development\Mira_Izzatul\FireManager.cpp.obj"
+"C:\Users\User\Documents\Unreal Projects\FireSpreading_Simulation\Mira_Izzatul\Intermediate\Build\Win64\x64\UnrealEditor\Development\Mira_Izzatul\Default.rc2.res"
+/OUT:"C:\Users\User\Documents\Unreal Projects\FireSpreading_Simulation\Mira_Izzatul\Intermediate\Build\Win64\x64\UnrealEditor\Development\Mira_Izzatul\UnrealEditor-Mira_Izzatul.lib"

@@ -1,0 +1,19 @@
+{
+    "Version": "1.2",
+    "Data": {
+        "Source": "c:\\users\\user\\documents\\unreal projects\\firespreading_simulation\\mira_izzatul\\source\\mira_izzatul\\private\\firespreadspecpawn.cpp",
+        "ProvidedModule": "",
+        "PCH": "c:\\users\\user\\documents\\unreal projects\\firespreading_simulation\\mira_izzatul\\intermediate\\build\\win64\\x64\\mira_izzatuleditor\\development\\unrealed\\sharedpch.unrealed.project.valapi.cpp20.h.pch",
+        "Includes": [
+            "c:\\users\\user\\documents\\unreal projects\\firespreading_simulation\\mira_izzatul\\intermediate\\build\\win64\\x64\\unrealeditor\\development\\mira_izzatul\\definitions.mira_izzatul.h",
+            "c:\\users\\user\\documents\\unreal projects\\firespreading_simulation\\mira_izzatul\\source\\mira_izzatul\\public\\firespreadspecpawn.h",
+            "c:\\program files\\ue_5.4\\engine\\source\\runtime\\engine\\classes\\gameframework\\spectatorpawn.h",
+            "c:\\program files\\ue_5.4\\engine\\source\\runtime\\engine\\classes\\gameframework\\defaultpawn.h",
+            "c:\\program files\\ue_5.4\\engine\\intermediate\\build\\win64\\unrealeditor\\inc\\engine\\uht\\defaultpawn.generated.h",
+            "c:\\program files\\ue_5.4\\engine\\intermediate\\build\\win64\\unrealeditor\\inc\\engine\\uht\\spectatorpawn.generated.h",
+            "c:\\users\\user\\documents\\unreal projects\\firespreading_simulation\\mira_izzatul\\intermediate\\build\\win64\\unrealeditor\\inc\\mira_izzatul\\uht\\firespreadspecpawn.generated.h"
+        ],
+        "ImportedModules": [],
+        "ImportedHeaderUnits": []
+    }
+}

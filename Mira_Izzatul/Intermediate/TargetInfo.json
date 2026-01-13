@@ -1,0 +1,14 @@
+{
+	"Targets": [
+		{
+			"Name": "Mira_Izzatul",
+			"Path": "..\\Source\\Mira_Izzatul.Target.cs",
+			"Type": "Game"
+		},
+		{
+			"Name": "Mira_IzzatulEditor",
+			"Path": "..\\Source\\Mira_IzzatulEditor.Target.cs",
+			"Type": "Editor"
+		}
+	]
+}

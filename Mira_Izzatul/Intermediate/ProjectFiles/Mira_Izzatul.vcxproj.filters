@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="17.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <None Include="..\..\Mira_Izzatul.uproject" />
+    <Filter Include="Source">
+      <UniqueIdentifier>{F31BBDD1-B3E8-3BCC-9652-680E16935819}</UniqueIdentifier>
+    </Filter>
+    <None Include="..\..\Source\Mira_Izzatul.Target.cs">
+      <Filter>Source</Filter>
+    </None>
+    <None Include="..\..\Source\Mira_IzzatulEditor.Target.cs">
+      <Filter>Source</Filter>
+    </None>
+    <None Include="..\..\.vsconfig" />
+    <Filter Include="Config">
+      <UniqueIdentifier>{FA535FFB-25E1-3D20-B416-52F9BE21E06E}</UniqueIdentifier>
+    </Filter>
+    <None Include="..\..\Config\DefaultEditor.ini">
+      <Filter>Config</Filter>
+    </None>
+    <None Include="..\..\Config\DefaultEngine.ini">
+      <Filter>Config</Filter>
+    </None>
+    <None Include="..\..\Config\DefaultGame.ini">
+      <Filter>Config</Filter>
+    </None>
+    <None Include="..\..\Config\DefaultInput.ini">
+      <Filter>Config</Filter>
+    </None>
+    <Filter Include="Source\Mira_Izzatul">
+      <UniqueIdentifier>{5F15C638-EE55-3176-BFB6-4FE9D7629A41}</UniqueIdentifier>
+    </Filter>
+    <None Include="..\..\Source\Mira_Izzatul\Mira_Izzatul.Build.cs">
+      <Filter>Source\Mira_Izzatul</Filter>
+    </None>
+    <ClCompile Include="..\..\Source\Mira_Izzatul\Mira_Izzatul.cpp">
+      <Filter>Source\Mira_Izzatul</Filter>
+    </ClCompile>
+    <ClInclude Include="..\..\Source\Mira_Izzatul\Mira_Izzatul.h">
+      <Filter>Source\Mira_Izzatul</Filter>
+    </ClInclude>
+    <Filter Include="Source\Mira_Izzatul\Private">
+      <UniqueIdentifier>{4582D63C-A6BB-38FD-9C03-D8A0BF76B480}</UniqueIdentifier>
+    </Filter>
+    <ClCompile Include="..\..\Source\Mira_Izzatul\Private\ActorSpawner.cpp">
+      <Filter>Source\Mira_Izzatul\Private</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Source\Mira_Izzatul\Private\FireFreeFlyPawn.cpp">
+      <Filter>Source\Mira_Izzatul\Private</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Source\Mira_Izzatul\Private\FireManager.cpp">
+      <Filter>Source\Mira_Izzatul\Private</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Source\Mira_Izzatul\Private\FirePlayerController.cpp">
+      <Filter>Source\Mira_Izzatul\Private</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Source\Mira_Izzatul\Private\FireSpreadSpecPawn.cpp">
+      <Filter>Source\Mira_Izzatul\Private</Filter>
+    </ClCompile>
+    <Filter Include="Source\Mira_Izzatul\Public">
+      <UniqueIdentifier>{588A430A-07AB-381B-9F0C-E03A5DE289BE}</UniqueIdentifier>
+    </Filter>
+    <ClInclude Include="..\..\Source\Mira_Izzatul\Public\ActorSpawner.h">
+      <Filter>Source\Mira_Izzatul\Public</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Source\Mira_Izzatul\Public\FireFreeFlyPawn.h">
+      <Filter>Source\Mira_Izzatul\Public</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Source\Mira_Izzatul\Public\FireManager.h">
+      <Filter>Source\Mira_Izzatul\Public</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Source\Mira_Izzatul\Public\FirePlayerController.h">
+      <Filter>Source\Mira_Izzatul\Public</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Source\Mira_Izzatul\Public\FireSpreadSpecPawn.h">
+      <Filter>Source\Mira_Izzatul\Public</Filter>
+    </ClInclude>
+  </ItemGroup>
+</Project>

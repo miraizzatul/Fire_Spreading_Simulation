@@ -1,0 +1,14 @@
+{
+    "Version": "1.2",
+    "Data": {
+        "Source": "c:\\users\\user\\documents\\unreal projects\\firespreading_simulation\\mira_izzatul\\source\\mira_izzatul\\mira_izzatul.cpp",
+        "ProvidedModule": "",
+        "PCH": "c:\\users\\user\\documents\\unreal projects\\firespreading_simulation\\mira_izzatul\\intermediate\\build\\win64\\x64\\mira_izzatuleditor\\development\\unrealed\\sharedpch.unrealed.project.valapi.cpp20.h.pch",
+        "Includes": [
+            "c:\\users\\user\\documents\\unreal projects\\firespreading_simulation\\mira_izzatul\\intermediate\\build\\win64\\x64\\unrealeditor\\development\\mira_izzatul\\definitions.mira_izzatul.h",
+            "c:\\users\\user\\documents\\unreal projects\\firespreading_simulation\\mira_izzatul\\source\\mira_izzatul\\mira_izzatul.h"
+        ],
+        "ImportedModules": [],
+        "ImportedHeaderUnits": []
+    }
+}
