@@ -20,6 +20,89 @@ AActorSpawner::AActorSpawner()
 	HISM->NumCustomDataFloats = 2; // 0 = FireState, 1 = BurnProgress
 }
 
+int32 AActorSpawner::GetMaxSpawnable() const
+{
+    return MaxSpawnable;
+}
+
+void AActorSpawner::BeginPlay()
+{
+    Super::BeginPlay();
+
+    // Precompute maximum candidate positions using the smallest allowed gap so this
+    // represents the maximal number of possible placements. This avoids recomputing
+    // the grid every call to GenerateScene.
+    if (!objMesh)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("AActorSpawner::BeginPlay - objMesh not assigned; cannot precompute candidates."));
+        return;
+    }
+
+    // Use same scale logic as GenerateScene to compute step
+    FVector ObjScale = FVector(0.5f);
+    FVector MeshExtent = objMesh->GetBounds().BoxExtent;
+    float ObjHalf = MeshExtent.Z * ObjScale.Z;
+    float ObjSizeXY = MeshExtent.X * 2.f * ObjScale.X;
+
+    // Build candidate positions using the minimum allowed gap to maximize density
+    float Step = ObjSizeXY + MinAllowedGap;
+    float MaxScatter = Step / 4.f;
+
+    double TotalLandscapeArea = 0.0;
+    // Call GetCandidatePositions once to get both candidates and landscape area.
+    CachedCandidates = GetCandidatePositions(ObjHalf, MaxScatter, Step, &TotalLandscapeArea);
+
+    // Compute a simple landscape-area based estimate (sum of proxy XY areas returned by GetCandidatePositions).
+    // Avoid division by zero
+    const double CellArea = FMath::Max(1.0f, static_cast<double>(Step) * static_cast<double>(Step));
+    const int32 TheoreticalMax = static_cast<int32>(FMath::FloorToFloat(static_cast<float>(TotalLandscapeArea / CellArea)));
+
+    // Set MaxSpawnable to the best available estimate: use the cached exact count when available,
+    // otherwise fall back to the theoretical area-based estimate. This avoids reporting zero
+    // when discrete candidates were found but area calculation missed proxies (streaming not ready).
+    MaxSpawnable = FMath::Max(TheoreticalMax, CachedCandidates.Num());
+
+    if (MaxSpawnable == 0)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("AActorSpawner::BeginPlay - computed MaxSpawnable == 0. CachedCandidates=%d, TheoreticalMax=%d. If level streaming loads proxies after BeginPlay, call RecomputeCachedCandidates()."), CachedCandidates.Num(), TheoreticalMax);
+    }
+
+    UE_LOG(LogTemp, Log, TEXT("AActorSpawner::BeginPlay - Precomputed %d candidate positions (exact). Theoretical max based on landscape area: %d."),
+        CachedCandidates.Num(), MaxSpawnable);
+
+    // Broadcast the initial MaxSpawnable value
+    OnMaxSpawnableChanged.Broadcast(MaxSpawnable);
+}
+
+void AActorSpawner::RecomputeCachedCandidates()
+{
+    if (!objMesh)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("RecomputeCachedCandidates: objMesh not assigned."));
+        return;
+    }
+
+    FVector ObjScale = FVector(0.5f);
+    FVector MeshExtent = objMesh->GetBounds().BoxExtent;
+    float ObjHalf = MeshExtent.Z * ObjScale.Z;
+    float ObjSizeXY = MeshExtent.X * 2.f * ObjScale.X;
+
+    float Step = ObjSizeXY + MinAllowedGap;
+    float MaxScatter = Step / 4.f;
+
+    double TotalLandscapeArea = 0.0;
+    CachedCandidates = GetCandidatePositions(ObjHalf, MaxScatter, Step, &TotalLandscapeArea);
+
+    const double CellArea = FMath::Max(1.0f, static_cast<double>(Step) * static_cast<double>(Step));
+    const int32 TheoreticalMax = static_cast<int32>(FMath::FloorToFloat(static_cast<float>(TotalLandscapeArea / CellArea)));
+
+    MaxSpawnable = FMath::Max(TheoreticalMax, CachedCandidates.Num());
+
+    UE_LOG(LogTemp, Log, TEXT("RecomputeCachedCandidates: updated MaxSpawnable=%d (Cached=%d, Theoretical=%d)"), MaxSpawnable, CachedCandidates.Num(), TheoreticalMax);
+
+    OnMaxSpawnableChanged.Broadcast(MaxSpawnable);
+}
+
 void AActorSpawner::GenerateScene(int32 NumActors)
 {
     for (TActorIterator<AFireManager> It(GetWorld()); It; ++It)
@@ -49,20 +132,21 @@ void AActorSpawner::GenerateScene(int32 NumActors)
     float ObjHalf = MeshExtent.Z * ObjScale.Z;           // half-height
     float ObjSizeXY = MeshExtent.X * 2.f * ObjScale.X;   // full X size for spacing
 
-    // Adaptive spawning parameters
-    const float InitialMinGap = 100.f;   // starting minimum gap between instances
-    const float MinAllowedGap = 0.f;     // smallest gap allowed when relaxing constraints
-    const int32 MaxAttempts = 4;         // number of times to rebuild candidates with relaxed gap
-    const float RelaxationFactor = 0.5f; // how much to reduce MinGap on each attempt
-
     float CurrentMinGap = InitialMinGap;
-
-    float MaxSlopeAngle = 30.f;     // max terrain slope
-    float MaxScatter = 0.f;         // will be computed per attempt
+    float MaxScatter = 0.f;  // will be computed per attempt
 
     int32 RequestedNumActors = NumActors;
-
     int32 FinalPlacedCount = 0;
+
+    // If cache is empty (objMesh missing at begin or precompute skipped), build on demand for this call
+    if (CachedCandidates.Num() == 0)
+    {
+        float StepForCache = ObjSizeXY + MinAllowedGap;
+        float ScatterForCache = StepForCache / 4.f;
+        CachedCandidates = GetCandidatePositions(ObjHalf, ScatterForCache, StepForCache);
+        MaxSpawnable = CachedCandidates.Num();
+        UE_LOG(LogTemp, Log, TEXT("AActorSpawner::GenerateScene - Built fallback cache with %d candidates."), MaxSpawnable);
+    }
 
     // Try several attempts with progressively relaxed spacing to try to meet NumActors.
     for (int32 Attempt = 0; Attempt < MaxAttempts; ++Attempt)
@@ -72,59 +156,19 @@ void AActorSpawner::GenerateScene(int32 NumActors)
         float Step = ObjSizeXY + MinGap;
         MaxScatter = Step / 4.f;
 
-        // Candidate struct with per-candidate bounds
-        struct FCandidate
-        {
-            FVector Pos;
-            float MinX, MaxX;
-            float MinY, MaxY;
-        };
+        // Start from cached maximal candidate set for deterministic behavior
+        TArray<FCandidate> CandidatePositions = CachedCandidates;
 
-        TArray<FCandidate> CandidatePositions;
-
-        // Iterate all loaded Landscape Streaming Proxies
-        for (TActorIterator<ALandscapeStreamingProxy> It(GetWorld()); It; ++It)
-        {
-            ALandscapeStreamingProxy* Proxy = *It;
-            if (!Proxy) continue;
-
-            ULevel* ProxyLevel = Proxy->GetLevel();
-            if (!ProxyLevel || !ProxyLevel->bIsVisible) continue; // skip unloaded proxies
-
-            FVector MinBound = Proxy->GetComponentsBoundingBox().Min;
-            FVector MaxBound = Proxy->GetComponentsBoundingBox().Max;
-
-            // Clamp candidate positions so full cube + scatter stays inside bounds
-            float MinX = MinBound.X + ObjHalf + MaxScatter;
-            float MaxX = MaxBound.X - ObjHalf - MaxScatter;
-            float MinY = MinBound.Y + ObjHalf + MaxScatter;
-            float MaxY = MaxBound.Y - ObjHalf - MaxScatter;
-
-            // If bounds are degenerate, skip this proxy
-            if (MinX > MaxX || MinY > MaxY) continue;
-
-            for (float X = MinX; X <= MaxX; X += Step)
-            {
-                for (float Y = MinY; Y <= MaxY; Y += Step)
-                {
-                    FCandidate C;
-                    C.Pos = FVector(X, Y, 0.f); // Z will be set by line trace
-                    C.MinX = MinX;
-                    C.MaxX = MaxX;
-                    C.MinY = MinY;
-                    C.MaxY = MaxY;
-                    CandidatePositions.Add(C);
-                }
-            }
-        }
-
-        // If there are no candidates at all, no need to continue
+        // If cache is empty (objMesh missing at begin or precompute skipped), build on demand for this call
         if (CandidatePositions.Num() == 0)
         {
-            UE_LOG(LogTemp, Warning, TEXT("GenerateScene: No placement candidates found (attempt %d)."), Attempt + 1);
-            // Relax spacing and try again
-            CurrentMinGap = FMath::Max(CurrentMinGap * RelaxationFactor, MinAllowedGap);
-            continue;
+            float StepForCache = ObjSizeXY + MinAllowedGap;
+            float ScatterForCache = StepForCache / 4.f;
+            CandidatePositions = GetCandidatePositions(ObjHalf, ScatterForCache, StepForCache);
+            // Update cache and MaxSpawnable for future calls
+            CachedCandidates = CandidatePositions;
+            MaxSpawnable = CachedCandidates.Num();
+            UE_LOG(LogTemp, Log, TEXT("AActorSpawner::GenerateScene - Built fallback cache with %d candidates."), MaxSpawnable);
         }
 
         // Shuffle candidates for random placement
@@ -165,7 +209,7 @@ void AActorSpawner::GenerateScene(int32 NumActors)
 
             // Slope filtering
             float SlopeAngle = FMath::RadiansToDegrees(FMath::Acos(FVector::DotProduct(HitResult.Normal, FVector::UpVector)));
-            if (SlopeAngle > MaxSlopeAngle) continue;
+            if (SlopeAngle > 30.f) continue;
 
             // Final position: terrain height + half cube height
             FVector FinalPos = HitResult.Location;
@@ -236,4 +280,58 @@ void AActorSpawner::GenerateScene(int32 NumActors)
 
     //Set previous simulation state back
     fireManager->SetSimulationRunning(isFireSimulationActive);
+}
+
+TArray<FCandidate> AActorSpawner::GetCandidatePositions(float objHalf, float maxScatter, float step, double* OutTotalArea /*= nullptr */)
+{
+    TArray<FCandidate> CandidatePositions;
+    double AccumArea = 0.0;
+
+    // Iterate all loaded Landscape Streaming Proxies
+    for (TActorIterator<ALandscapeStreamingProxy> It(GetWorld()); It; ++It)
+    {
+        ALandscapeStreamingProxy* Proxy = *It;
+        if (!Proxy) continue;
+
+        ULevel* ProxyLevel = Proxy->GetLevel();
+        if (!ProxyLevel || !ProxyLevel->bIsVisible) continue; // skip unloaded proxies
+
+        FVector MinBound = Proxy->GetComponentsBoundingBox().Min;
+        FVector MaxBound = Proxy->GetComponentsBoundingBox().Max;
+
+        // Accumulate proxy XY area for a fast landscape-size estimate
+        const double Width = FMath::Max(0.0f, MaxBound.X - MinBound.X);
+        const double Height = FMath::Max(0.0f, MaxBound.Y - MinBound.Y);
+        AccumArea += Width * Height;
+
+        // Clamp candidate positions so full cube + scatter stays inside bounds
+        float MinX = MinBound.X + objHalf + maxScatter;
+        float MaxX = MaxBound.X - objHalf - maxScatter;
+        float MinY = MinBound.Y + objHalf + maxScatter;
+        float MaxY = MaxBound.Y - objHalf - maxScatter;
+
+        // If bounds are degenerate, skip this proxy
+        if (MinX > MaxX || MinY > MaxY) continue;
+
+        for (float X = MinX; X <= MaxX; X += step)
+        {
+            for (float Y = MinY; Y <= MaxY; Y += step)
+            {
+                FCandidate C;
+                C.Pos = FVector(X, Y, 0.f); // Z will be set by line trace
+                C.MinX = MinX;
+                C.MaxX = MaxX;
+                C.MinY = MinY;
+                C.MaxY = MaxY;
+                CandidatePositions.Add(C);
+            }
+        }
+    }
+
+    if (OutTotalArea)
+    {
+        *OutTotalArea = AccumArea;
+    }
+
+    return CandidatePositions;
 }

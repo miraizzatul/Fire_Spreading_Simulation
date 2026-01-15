@@ -14,7 +14,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("Mira_IzzatulModuleRules")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Development")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+9ab5d56a529efcc464ff7d6fce306975862370b1")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+3045a0097a27a3e865f278f2224fd6b441c98463")]
 [assembly: System.Reflection.AssemblyProductAttribute("Mira_IzzatulModuleRules")]
 [assembly: System.Reflection.AssemblyTitleAttribute("Mira_IzzatulModuleRules")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

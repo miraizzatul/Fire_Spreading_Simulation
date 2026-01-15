@@ -5,6 +5,8 @@
 			"guid": "00000000000000000000000000000000",
 			"description": "Default Uncontrolled Changelist",
 			"files": [
+				"C:/Users/User/Documents/Unreal Projects/FireSpreading_Simulation/Mira_Izzatul/Content/Widgets/HUD_Main.uasset",
+				"C:/Users/User/Documents/Unreal Projects/FireSpreading_Simulation/Mira_Izzatul/Content/Widgets/W_SliderObject.uasset",
 				"C:/Users/User/Documents/Unreal Projects/Mira_Izzatul/Content/FireSpreadingMap_HLOD0_Instancing.uasset",
 				"C:/Users/User/Documents/Unreal Projects/Mira_Izzatul/Content/FireSpreadingMap.umap",
 				"C:/Users/User/Documents/Unreal Projects/Mira_Izzatul/Content/__ExternalActors__/Levels/FireSpreadingMap/9/G2/6B8GV2GDELYOHLC46X9NU9.uasset",
@@ -114,7 +116,6 @@
 				"C:/Users/User/Documents/Unreal Projects/Mira_Izzatul/Content/Materials/RTV_Scorch.uasset",
 				"C:/Users/User/Documents/Unreal Projects/Mira_Izzatul/Content/Materials/M_ScrochDraw.uasset",
 				"C:/Users/User/Documents/Unreal Projects/Mira_Izzatul/Content/__ExternalActors__/Levels/FireSpreadingMap/0/M4/2T69HUAIHO57AN0GG08K30.uasset",
-				"C:/Users/User/Documents/Unreal Projects/Mira_Izzatul/Content/Materials/GroundMaterial.uasset",
 				"C:/Users/User/Documents/Unreal Projects/Mira_Izzatul/Content/__ExternalActors__/Levels/FireSpreadingMap/B/VN/QIIGR8YL9XI01OSKVC4CGC.uasset",
 				"C:/Users/User/Documents/Unreal Projects/Mira_Izzatul/Content/Blueprints/BP_FireFreeFlyPawn.uasset",
 				"C:/Users/User/Documents/Unreal Projects/Mira_Izzatul/Content/Inputs/IA_MoveForward.uasset",
