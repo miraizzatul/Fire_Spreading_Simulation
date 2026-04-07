@@ -73,3 +73,6 @@ Plugins/**/Intermediate/*
 
 # Cache files for the editor to use
 DerivedDataCache/*
+/Mira_Izzatul/Binaries
+/Mira_Izzatul/Intermediate
+/Mira_Izzatul/Saved
