@@ -48,10 +48,6 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Spawning")
 	void GenerateScene(int32 NumActors);
 
-    // Recompute cached candidate positions and update MaxSpawnable. Call when level streaming finishes.
-    UFUNCTION(BlueprintCallable, Category = "Spawning")
-    void RecomputeCachedCandidates();
-
     // Expose MaxSpawnable to Blueprints via a getter
     UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Spawning")
     int32 GetMaxSpawnable() const;
