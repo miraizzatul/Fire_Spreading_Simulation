@@ -64,9 +64,15 @@ private:
 	UPROPERTY()
 	TArray<FCandidate> CachedCandidates;
 
+	UPROPERTY()
+	TArray<FCandidate> CandidatePositions;
+
 	// Maximum spawnable count computed at BeginPlay
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Spawning", meta = (AllowPrivateAccess = "true"))
 	int32 MaxSpawnable = 0;
+
+	UPROPERTY()
+	int32 RequestedNumActors = 0;
 
 public:
 	// Adaptive spawning parameters (exposed so designers can tweak)

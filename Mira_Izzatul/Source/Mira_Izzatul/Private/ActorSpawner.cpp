@@ -6,6 +6,7 @@
 #include "Components/HierarchicalInstancedStaticMeshComponent.h"
 #include "LandscapeStreamingProxy.h"
 #include "EngineUtils.h"
+#include "ProfilingDebugging/MiscTrace.h"
 
 AActorSpawner::AActorSpawner()
 {
@@ -14,6 +15,11 @@ AActorSpawner::AActorSpawner()
 	// Create HISM as subobject (visible in editor and Blueprint)
 	HISM = CreateDefaultSubobject<UHierarchicalInstancedStaticMeshComponent>(TEXT("HISM"));
 	RootComponent = HISM;
+
+	// Configure collision for HISM: ignore all channels except visibility (for line traces)
+    HISM->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+    HISM->SetCollisionResponseToAllChannels(ECR_Ignore);
+    HISM->SetCollisionResponseToChannel(ECC_Visibility, ECR_Block);
 
 	// Set mobility and enable custom data
 	HISM->SetMobility(EComponentMobility::Movable);
@@ -73,18 +79,21 @@ void AActorSpawner::BeginPlay()
     UE_LOG(LogTemp, Log, TEXT("AActorSpawner::BeginPlay - Precomputed %d candidate positions (exact). Theoretical max based on landscape area: %d."),
         CachedCandidates.Num(), MaxSpawnable);
 
+    for (TActorIterator<AFireManager> It(GetWorld()); It; ++It)
+    {
+        fireManager = *It;
+        break;
+    }
+
     // Broadcast the initial MaxSpawnable value
     OnMaxSpawnableChanged.Broadcast(MaxSpawnable);
 }
 
 void AActorSpawner::GenerateScene(int32 NumActors)
 {
+    TRACE_BOOKMARK(TEXT("Generate Scene Started"));
+
     //UE_LOG(LogTemp, Error, TEXT("GenerateScene called"));
-    for (TActorIterator<AFireManager> It(GetWorld()); It; ++It)
-    {
-        fireManager = *It;
-        break;
-    }
 
     if (!objMesh || !fireManager || !HISM) return;
 
@@ -95,7 +104,7 @@ void AActorSpawner::GenerateScene(int32 NumActors)
         fireManager->SetSimulationRunning(false);
 
     // Clear the previous Fire Instances
-    fireManager->fireInstances.Empty();
+    //fireManager->fireInstances.Empty();
 
     // Assign mesh
     HISM->SetStaticMesh(objMesh);
@@ -106,16 +115,19 @@ void AActorSpawner::GenerateScene(int32 NumActors)
     FVector MeshExtent = objMesh->GetBounds().BoxExtent; // half-size
     float ObjHalf = MeshExtent.Z * ObjScale.Z;           // half-height
     float ObjSizeXY = MeshExtent.X * 2.f * ObjScale.X;   // full X size for spacing
-    UE_LOG(LogTemp, Warning,
-        TEXT("CubeSize=%f InitialGap=%f MinAllowedGap=%f"),
-        ObjSizeXY,
-        InitialMinGap,
-        MinAllowedGap);
+    UE_LOG(LogTemp, Warning,TEXT("CubeSize=%f InitialGap=%f MinAllowedGap=%f"), ObjSizeXY, InitialMinGap, MinAllowedGap);
 
     float CurrentMinGap = InitialMinGap;
     float MaxScatter = 0.f;  // will be computed per attempt
+    float MinGap = 0.f;
+    float Step = 0.f;
 
-    int32 RequestedNumActors = NumActors;
+    RequestedNumActors = NumActors;
+
+	//Reserve fireInstances array to avoid reallocations during GenerateScene  
+    fireManager->fireInstances.Reset();
+    fireManager->fireInstances.Reserve(RequestedNumActors);
+
     int32 FinalPlacedCount = 0;
 
     // If cache is empty (objMesh missing at begin or precompute skipped), build on demand for this call
@@ -132,17 +144,15 @@ void AActorSpawner::GenerateScene(int32 NumActors)
     for (int32 Attempt = 0; Attempt < MaxAttempts; ++Attempt)
     {
         // Recompute parameters that depend on gap/step
-        float MinGap = CurrentMinGap;
-        float Step = ObjSizeXY + MinGap;
+        MinGap = CurrentMinGap;
+        Step = ObjSizeXY + MinGap;
         MaxScatter = Step * 0.15f;
 
-        // Start from cached maximal candidate set for deterministic behavior
-        TArray<FCandidate> CandidatePositions = GetCandidatePositions(ObjHalf, MaxScatter, Step);
-        UE_LOG(LogTemp, Warning,
-            TEXT("Step=%f Scatter=%f Candidates=%d"),
-            Step,
-            MaxScatter,
-            CandidatePositions.Num());
+		// Reset candidate positions to the cached values for this attempt
+        CandidatePositions.Reset();
+        CandidatePositions.Append(CachedCandidates);
+
+        UE_LOG(LogTemp, Warning, TEXT("Step=%f Scatter=%f Candidates=%d"), Step, MaxScatter, CandidatePositions.Num());
 
         // If cache is empty (objMesh missing at begin or precompute skipped), build on demand for this call
         if (CandidatePositions.Num() == 0)
@@ -156,13 +166,6 @@ void AActorSpawner::GenerateScene(int32 NumActors)
             UE_LOG(LogTemp, Log, TEXT("AActorSpawner::GenerateScene - Built fallback cache with %d candidates."), MaxSpawnable);
         }
 
-        // Shuffle candidates for random placement
-        for (int32 i = 0; i < CandidatePositions.Num(); i++)
-        {
-            int32 SwapIdx = FMath::RandRange(0, CandidatePositions.Num() - 1);
-            CandidatePositions.Swap(i, SwapIdx);
-        }
-
         //Make spawning adaptive to available candidates
         int32 AttemptTarget = FMath::Min(RequestedNumActors, CandidatePositions.Num());
 
@@ -170,13 +173,17 @@ void AActorSpawner::GenerateScene(int32 NumActors)
 
         int32 TraceFailures = 0;
 
+        TArray<FTransform> Transforms;
+        Transforms.Reserve(AttemptTarget);
+
         while (PlacedCount < AttemptTarget && CandidatePositions.Num() > 0)
         {
             int32 CandidateIndex = FMath::RandRange(0, CandidatePositions.Num() - 1);
 
-            FCandidate Candidate = CandidatePositions[CandidateIndex];
+            CandidatePositions.Swap(CandidateIndex, CandidatePositions.Num() - 1);
 
-            CandidatePositions.RemoveAtSwap(CandidateIndex);
+            FCandidate Candidate = MoveTemp(CandidatePositions.Last());
+            CandidatePositions.Pop(false);
 
             // Clamp using candidate-specific bounds
             Candidate.Pos.X = FMath::Clamp(Candidate.Pos.X, Candidate.MinX, Candidate.MaxX);
@@ -208,12 +215,18 @@ void AActorSpawner::GenerateScene(int32 NumActors)
             FRotator InstanceRotation = FRotationMatrix::MakeFromZX(HitResult.Normal, FVector::ForwardVector).Rotator();
             FTransform InstanceTransform(InstanceRotation, FinalPos, ObjScale);
 
-            int32 Index = HISM->AddInstance(InstanceTransform);
+            Transforms.Add(InstanceTransform);
 
-            if (fireManager)
-                fireManager->RegisterFireComponent(Index, this);
-
+            //int32 Index = HISM->AddInstance(InstanceTransform);
             PlacedCount++;
+        }
+
+        int32 Index = HISM->GetInstanceCount();
+        HISM->AddInstances(Transforms, false, true, false);
+
+        for (int32 i = 0; i < Transforms.Num(); i++)
+        {
+            fireManager->RegisterFireComponent(Index + i, this);
         }
 
         FinalPlacedCount = FMath::Max(FinalPlacedCount, PlacedCount);
@@ -261,7 +274,6 @@ void AActorSpawner::GenerateScene(int32 NumActors)
 
 TArray<FCandidate> AActorSpawner::GetCandidatePositions(float objHalf, float maxScatter, float step, double* OutTotalArea /*= nullptr */)
 {
-    TArray<FCandidate> CandidatePositions;
     double AccumArea = 0.0;
 
     // Iterate all loaded Landscape Streaming Proxies
