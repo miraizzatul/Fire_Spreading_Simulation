@@ -17,13 +17,15 @@ AActorSpawner::AActorSpawner()
 	RootComponent = HISM;
 
 	// Configure collision for HISM: ignore all channels except visibility (for line traces)
-    HISM->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+    HISM->SetCollisionEnabled(ECollisionEnabled::NoCollision);
     HISM->SetCollisionResponseToAllChannels(ECR_Ignore);
     HISM->SetCollisionResponseToChannel(ECC_Visibility, ECR_Block);
 
 	// Set mobility and enable custom data
 	HISM->SetMobility(EComponentMobility::Movable);
 	HISM->NumCustomDataFloats = 2; // 0 = FireState, 1 = BurnProgress
+    HISM->SetGenerateOverlapEvents(false);
+    HISM->SetCanEverAffectNavigation(false);
 }
 
 int32 AActorSpawner::GetMaxSpawnable() const
@@ -223,6 +225,8 @@ void AActorSpawner::GenerateScene(int32 NumActors)
 
         int32 Index = HISM->GetInstanceCount();
         HISM->AddInstances(Transforms, false, true, false);
+        HISM->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+        HISM->BuildTreeIfOutdated(true, false);
 
         for (int32 i = 0; i < Transforms.Num(); i++)
         {
@@ -249,7 +253,7 @@ void AActorSpawner::GenerateScene(int32 NumActors)
         CurrentMinGap = FMath::Max(CurrentMinGap * RelaxationFactor, MinAllowedGap);
 
         // If gap is already at minimum and still not enough, stop early
-        if (CurrentMinGap <= MinAllowedGap + KINDA_SMALL_NUMBER)
+        if (CurrentMinGap <= MinAllowedGap + (1.e-4f))
         {
             UE_LOG(LogTemp, Warning, TEXT("GenerateScene: reached minimum allowed gap and still couldn't place all requested actors."));
             break;
