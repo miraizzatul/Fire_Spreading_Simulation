@@ -17,6 +17,7 @@ AActorSpawner::AActorSpawner()
 	RootComponent = HISM;
 
 	// Configure collision for HISM: ignore all channels except visibility (for line traces)
+    HISM->SetCollisionObjectType(ECC_WorldStatic);
     HISM->SetCollisionEnabled(ECollisionEnabled::NoCollision);
     HISM->SetCollisionResponseToAllChannels(ECR_Ignore);
     HISM->SetCollisionResponseToChannel(ECC_Visibility, ECR_Block);
@@ -48,17 +49,15 @@ void AActorSpawner::BeginPlay()
         return;
     }
 
-    // Use same scale logic as GenerateScene to compute step
-    FVector ObjScale = FVector(0.5f);
-    FVector MeshExtent = objMesh->GetBounds().BoxExtent;
-    float ObjHalf = MeshExtent.Z * ObjScale.Z;
-    float ObjSizeXY = MeshExtent.X * 2.f * ObjScale.X;
-
-    // Build candidate positions using the minimum allowed gap to maximize density
-    float Step = ObjSizeXY + MinAllowedGap;
-    float MaxScatter = 0.f;
+	// Compute initial object size and step based on the mesh bounds and scale. This assumes uniform scaling.
+    ObjScale = FVector(0.5f);
+    MeshExtent = objMesh->GetBounds().BoxExtent;
+    ObjHalf = MeshExtent.Z * ObjScale.Z;
+    ObjSizeXY = MeshExtent.X * 2.f * ObjScale.X;
+    Step = ObjSizeXY + MinAllowedGap;
 
     double TotalLandscapeArea = 0.0;
+
     // Call GetCandidatePositions once to get both candidates and landscape area.
     CachedCandidates = GetCandidatePositions(ObjHalf, MaxScatter, Step, &TotalLandscapeArea);
 
@@ -95,8 +94,6 @@ void AActorSpawner::GenerateScene(int32 NumActors)
 {
     TRACE_BOOKMARK(TEXT("Generate Scene Started"));
 
-    //UE_LOG(LogTemp, Error, TEXT("GenerateScene called"));
-
     if (!objMesh || !fireManager || !HISM) return;
 
     //pause the simulation
@@ -105,42 +102,42 @@ void AActorSpawner::GenerateScene(int32 NumActors)
     if (isFireSimulationActive)
         fireManager->SetSimulationRunning(false);
 
-    // Clear the previous Fire Instances
-    //fireManager->fireInstances.Empty();
+    //Reserve fireInstances array to avoid reallocations during GenerateScene  
+    fireManager->fireInstances.Reset();
+    fireManager->fireInstances.Reserve(RequestedNumActors);
 
     // Assign mesh
     HISM->SetStaticMesh(objMesh);
     HISM->ClearInstances();
 
-    // Object scaling
-    FVector ObjScale = FVector(0.5f); // 0.5m cube
-    FVector MeshExtent = objMesh->GetBounds().BoxExtent; // half-size
-    float ObjHalf = MeshExtent.Z * ObjScale.Z;           // half-height
-    float ObjSizeXY = MeshExtent.X * 2.f * ObjScale.X;   // full X size for spacing
     UE_LOG(LogTemp, Warning,TEXT("CubeSize=%f InitialGap=%f MinAllowedGap=%f"), ObjSizeXY, InitialMinGap, MinAllowedGap);
 
     float CurrentMinGap = InitialMinGap;
-    float MaxScatter = 0.f;  // will be computed per attempt
     float MinGap = 0.f;
-    float Step = 0.f;
 
     RequestedNumActors = NumActors;
-
-	//Reserve fireInstances array to avoid reallocations during GenerateScene  
-    fireManager->fireInstances.Reset();
-    fireManager->fireInstances.Reserve(RequestedNumActors);
+	int32 AttemptTarget = 0;
 
     int32 FinalPlacedCount = 0;
 
-    // If cache is empty (objMesh missing at begin or precompute skipped), build on demand for this call
-    if (CachedCandidates.Num() == 0)
-    {
-        float StepForCache = ObjSizeXY + MinAllowedGap;
-        float ScatterForCache = StepForCache / 4.f;
-        CachedCandidates = GetCandidatePositions(ObjHalf, ScatterForCache, StepForCache);
-        MaxSpawnable = CachedCandidates.Num();
-        UE_LOG(LogTemp, Log, TEXT("AActorSpawner::GenerateScene - Built fallback cache with %d candidates."), MaxSpawnable);
-    }
+    float StepForCache = ObjSizeXY + MinAllowedGap;
+    float ScatterForCache = StepForCache / 4.f;
+
+    int32 CandidateIndex = 0;
+    FCandidate Candidate;
+
+    FVector TraceStart;
+    FVector TraceEnd;
+    FHitResult HitResult;
+    FCollisionQueryParams Params;
+    FVector FinalPos;
+
+    int32 Index;
+    int32 PlacedCount = 0;
+    int32 TraceFailures = 0;
+
+    TArray<FTransform> Transforms;
+    FRotator InstanceRotation;
 
     // Try several attempts with progressively relaxed spacing to try to meet NumActors.
     for (int32 Attempt = 0; Attempt < MaxAttempts; ++Attempt)
@@ -159,9 +156,8 @@ void AActorSpawner::GenerateScene(int32 NumActors)
         // If cache is empty (objMesh missing at begin or precompute skipped), build on demand for this call
         if (CandidatePositions.Num() == 0)
         {
-            float StepForCache = ObjSizeXY + MinAllowedGap;
-            float ScatterForCache = StepForCache / 4.f;
             CandidatePositions = GetCandidatePositions(ObjHalf, ScatterForCache, StepForCache);
+
             // Update cache and MaxSpawnable for future calls
             CachedCandidates = CandidatePositions;
             MaxSpawnable = CachedCandidates.Num();
@@ -169,22 +165,17 @@ void AActorSpawner::GenerateScene(int32 NumActors)
         }
 
         //Make spawning adaptive to available candidates
-        int32 AttemptTarget = FMath::Min(RequestedNumActors, CandidatePositions.Num());
+        AttemptTarget = FMath::Min(RequestedNumActors, CandidatePositions.Num());
 
-        int32 PlacedCount = 0;
-
-        int32 TraceFailures = 0;
-
-        TArray<FTransform> Transforms;
         Transforms.Reserve(AttemptTarget);
 
         while (PlacedCount < AttemptTarget && CandidatePositions.Num() > 0)
         {
-            int32 CandidateIndex = FMath::RandRange(0, CandidatePositions.Num() - 1);
+            CandidateIndex = FMath::RandRange(0, CandidatePositions.Num() - 1);
 
             CandidatePositions.Swap(CandidateIndex, CandidatePositions.Num() - 1);
 
-            FCandidate Candidate = MoveTemp(CandidatePositions.Last());
+            Candidate = MoveTemp(CandidatePositions.Last());
             CandidatePositions.Pop(false);
 
             // Clamp using candidate-specific bounds
@@ -192,11 +183,9 @@ void AActorSpawner::GenerateScene(int32 NumActors)
             Candidate.Pos.Y = FMath::Clamp(Candidate.Pos.Y, Candidate.MinY, Candidate.MaxY);
 
             // Line trace down to terrain
-            FVector TraceStart = Candidate.Pos + FVector(0.f, 0.f, 1000.f);
-            FVector TraceEnd = Candidate.Pos - FVector(0.f, 0.f, 1000.f);
+            TraceStart = Candidate.Pos + FVector(0.f, 0.f, 1000.f);
+            TraceEnd = Candidate.Pos - FVector(0.f, 0.f, 1000.f);
 
-            FHitResult HitResult;
-            FCollisionQueryParams Params;
             Params.AddIgnoredActor(this);
 
             if (!GetWorld()->LineTraceSingleByChannel(HitResult, TraceStart, TraceEnd, ECC_WorldStatic, Params))
@@ -210,20 +199,18 @@ void AActorSpawner::GenerateScene(int32 NumActors)
             if (SlopeAngle > 30.f) continue;*/
 
             // Final position: terrain height + half cube height
-            FVector FinalPos = HitResult.Location;
+            FinalPos = HitResult.Location;
             FinalPos.Z += ObjHalf;
 
             // Align rotation to terrain normal
-            FRotator InstanceRotation = FRotationMatrix::MakeFromZX(HitResult.Normal, FVector::ForwardVector).Rotator();
-            FTransform InstanceTransform(InstanceRotation, FinalPos, ObjScale);
-
-            Transforms.Add(InstanceTransform);
+            InstanceRotation = FRotationMatrix::MakeFromZX(HitResult.Normal, FVector::ForwardVector).Rotator();
+            Transforms.Add(FTransform(InstanceRotation, FinalPos, ObjScale));
 
             //int32 Index = HISM->AddInstance(InstanceTransform);
             PlacedCount++;
         }
 
-        int32 Index = HISM->GetInstanceCount();
+        Index = HISM->GetInstanceCount();
         HISM->AddInstances(Transforms, false, true, false);
         HISM->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
         HISM->BuildTreeIfOutdated(true, false);
@@ -280,17 +267,29 @@ TArray<FCandidate> AActorSpawner::GetCandidatePositions(float objHalf, float max
 {
     double AccumArea = 0.0;
 
+    ALandscapeStreamingProxy* Proxy = nullptr;
+    ULevel* ProxyLevel = nullptr;
+    FVector MinBound = FVector::ZeroVector;
+    FVector MaxBound = FVector::ZeroVector;
+
+    float MinX = 0.0f;
+    float MaxX = 0.0f;
+    float MinY = 0.0f;
+    float MaxY = 0.0f;
+
+    FCandidate C;
+
     // Iterate all loaded Landscape Streaming Proxies
     for (TActorIterator<ALandscapeStreamingProxy> It(GetWorld()); It; ++It)
     {
-        ALandscapeStreamingProxy* Proxy = *It;
+        Proxy = *It;
         if (!Proxy) continue;
 
-        ULevel* ProxyLevel = Proxy->GetLevel();
+        ProxyLevel = Proxy->GetLevel();
         if (!ProxyLevel || !ProxyLevel->bIsVisible) continue; // skip unloaded proxies
 
-        FVector MinBound = Proxy->GetComponentsBoundingBox().Min;
-        FVector MaxBound = Proxy->GetComponentsBoundingBox().Max;
+        MinBound = Proxy->GetComponentsBoundingBox().Min;
+        MaxBound = Proxy->GetComponentsBoundingBox().Max;
 
         // Accumulate proxy XY area for a fast landscape-size estimate
         const double Width = FMath::Max(0.0f, MaxBound.X - MinBound.X);
@@ -298,10 +297,10 @@ TArray<FCandidate> AActorSpawner::GetCandidatePositions(float objHalf, float max
         AccumArea += Width * Height;
 
         // Clamp candidate positions so full cube + scatter stays inside bounds
-        float MinX = MinBound.X + objHalf + maxScatter;
-        float MaxX = MaxBound.X - objHalf - maxScatter;
-        float MinY = MinBound.Y + objHalf + maxScatter;
-        float MaxY = MaxBound.Y - objHalf - maxScatter;
+        MinX = MinBound.X + objHalf + maxScatter;
+        MaxX = MaxBound.X - objHalf - maxScatter;
+        MinY = MinBound.Y + objHalf + maxScatter;
+        MaxY = MaxBound.Y - objHalf - maxScatter;
 
         // If bounds are degenerate, skip this proxy
         if (MinX > MaxX || MinY > MaxY) continue;
@@ -310,16 +309,10 @@ TArray<FCandidate> AActorSpawner::GetCandidatePositions(float objHalf, float max
         {
             for (float Y = MinY; Y <= MaxY; Y += step)
             {
-                FCandidate C;
-
                 float RandomOffsetX = FMath::FRandRange(-maxScatter, maxScatter);
                 float RandomOffsetY = FMath::FRandRange(-maxScatter, maxScatter);
 
-                C.Pos = FVector(
-                    X + RandomOffsetX,
-                    Y + RandomOffsetY,
-                    0.f
-                );
+                C.Pos = FVector(X + RandomOffsetX, Y + RandomOffsetY, 0.f);
 
                 C.MinX = MinX;
                 C.MaxX = MaxX;

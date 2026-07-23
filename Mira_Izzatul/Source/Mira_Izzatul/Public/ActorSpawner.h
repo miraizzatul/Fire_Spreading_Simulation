@@ -74,6 +74,24 @@ private:
 	UPROPERTY()
 	int32 RequestedNumActors = 0;
 
+	UPROPERTY()
+	float MaxScatter = 0.f;
+
+	UPROPERTY()
+	float Step = 0.f;
+
+	UPROPERTY()
+	float ObjHalf = 0.f;
+
+	UPROPERTY()
+	float ObjSizeXY = 0.f;
+
+	UPROPERTY()
+	FVector ObjScale;
+
+	UPROPERTY()
+	FVector MeshExtent;
+
 public:
 	// Adaptive spawning parameters (exposed so designers can tweak)
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Spawning")
